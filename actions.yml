@@ -1,0 +1,73 @@
+name: Build, Push and Deploy Image
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: forgejo.yourdomain.com
+      IMAGE_NAME: steve/capstone-backend
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_API_URL: ${{ secrets.OPENAI_API_URL }}
+      PASSWORD: ${{ secrets.PASSWORD }}
+      ALGO: ${{ secrets.ALGO }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          repository: steve/capstone-backend
+          fetch-depth: 0
+          github-server-url: https://forgejo.yourdomain.com
+
+      - name: Set Image Tag
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "TAG=prod" >> $GITHUB_ENV
+          else
+            echo "TAG=dev" >> $GITHUB_ENV
+          fi
+
+      - name: Build Docker Image
+        run: docker build -t ${REGISTRY}/${IMAGE_NAME}:${TAG} .
+
+      - name: Login to Registry
+        run: echo "${REGISTRY_PASSWORD}" | docker login ${REGISTRY} -u ${REGISTRY_USERNAME} --password-stdin
+
+      - name: Push Image
+        run: docker push ${REGISTRY}/${IMAGE_NAME}:${TAG}
+
+      - name: Deploy via SSH
+        uses: https://github.com/appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: OPENAI_API_KEY,OPENAI_API_URL,PASSWORD,ALGO,RESEND_API_KEY
+          script: |
+            # 1. Log the VM into the registry so it can pull
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+            
+            cd /home/forgejo-deployment/capstone
+            
+            # Pull the specific image we just built
+            docker compose pull api-${{ env.TAG }}
+            
+            OPENAI_API_KEY="$OPENAI_API_KEY" \
+            OPENAI_API_URL="$OPENAI_API_URL" \
+            PASSWORD="$PASSWORD" \
+            ALGO="$ALGO" \
+            RESEND_API_KEY="$RESEND_API_KEY" \
+            TAG="${{ env.TAG }}" \
+            docker compose up -d api-${{ env.TAG }}
+            
+            # Clean up old images to save disk space
+            docker image prune -f

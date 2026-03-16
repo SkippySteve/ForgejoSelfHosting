@@ -1,0 +1,33 @@
+services:
+  api-prod:
+    image: forgejo.yourdomain.com/steve/capstone-backend:prod
+    container_name: capstone-api-prod
+    restart: always
+    networks:
+      - caddy
+    environment:
+      - ENV=production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_URL=${OPENAI_API_URL}
+      - PASSWORD=${PASSWORD}
+      - ALGO=${ALGO}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+
+  api-dev:
+    image: forgejo.yourdomain.com/steve/capstone-backend:dev
+    container_name: capstone-api-dev
+    restart: always
+    networks:
+      - caddy
+    environment:
+      - ENV=development
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_URL=${OPENAI_API_URL}
+      - PASSWORD=${PASSWORD}
+      - ALGO=${ALGO}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+
+networks:
+  caddy:
+    external: true
+    name: caddy

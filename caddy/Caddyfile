@@ -1,0 +1,20 @@
+forgejo.yourdomain.com {
+    reverse_proxy forgejo:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+capstone.yourdomain.com {
+    handle_path /api* {
+        reverse_proxy capstone-api-prod:8000
+    }
+}
+
+capstone-dev.yourdomain.com {
+    handle_path /api* {
+        reverse_proxy capstone-api-dev:8000
+    }
+}

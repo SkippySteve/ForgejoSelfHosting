@@ -1,0 +1,60 @@
+networks:
+  caddy:
+    external: true
+    name: caddy
+
+services:
+  server:
+    image: codeberg.org/forgejo/forgejo:14
+    container_name: forgejo
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__database__DB_TYPE=postgres
+      - FORGEJO__database__HOST=db:5432
+      - FORGEJO__database__NAME=forgejo
+      - FORGEJO__database__USER=forgejo
+      - FORGEJO__database__PASSWD="YourSecurePass"
+      - ROOT_URL=https://forgejo.yourdomain.com
+      - FORGEJO__packages__ENABLED=true
+      - FORGEJO__packages__CONTAINER__ENABLED=true
+    restart: always
+    networks:
+      - caddy
+    volumes:
+      - ./server/data:/data
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+      - "222:22"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:14
+    container_name: db
+    restart: always
+    environment:
+      - POSTGRES_USER=forgejo
+      - POSTGRES_PASSWORD="YourSecurePass"
+      - POSTGRES_DB=forgejo
+    networks:
+      - caddy
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+
+  runner:
+    image: 'data.forgejo.org/forgejo/runner:12'
+    container_name: runner
+    networks:
+      - caddy
+    privileged: true
+    user: root
+    group_add:
+      - 989
+    volumes:
+      - ./runner/data:/data
+      - /run/docker.sock:/var/run/docker.sock
+    restart: 'unless-stopped'
+    #command: '/bin/sh -c "while : ; do sleep 1 ; done ;"'
+    command: '/bin/sh -c "sleep 5; forgejo-runner daemon --config /data/config.yml"'
